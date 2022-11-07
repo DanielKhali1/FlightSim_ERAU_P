@@ -1,4 +1,4 @@
-
+﻿
 #if defined(_MSC_VER)
 // Make MS math.h define M_PI
 #define _USE_MATH_DEFINES
@@ -14,9 +14,10 @@
 #include <cglm/cglm.h>   /* for inline */
 #include <cglm/call.h>   /* for library call (this also includes cglm.h) */
 #include "camera.h"
+#include "game_state.h"
 
 
-#define CHUNK_DIMENSION 1000
+#define CHUNK_DIMENSION 1024
 #define GL_TEXTURE_MAX_ANISOTROPY_EXT 0x84FE
 #define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT 0x84FF
 
@@ -25,15 +26,24 @@ mat4 perspective = GLM_MAT4_IDENTITY_INIT;
 mat4 view = GLM_MAT4_IDENTITY_INIT;
 mat4 model1 = GLM_MAT4_IDENTITY_INIT;
 mat4 model2 = GLM_MAT4_IDENTITY_INIT;
+mat4 model3 = GLM_MAT4_IDENTITY_INIT;
+
 mat4 mvp = GLM_MAT4_IDENTITY_INIT;
 int width = 800.0f, height = 600.0f;
 GLuint cubemapShader;
+GLuint waterShader;
+
 GLuint cubemaptexture;
-GLuint vao[2];
+GLuint vao[3];
+
+GLuint refractFrameBuffer;
+GLuint reflectFrameBuffer;
+GLuint refractTextureId;
+GLuint reflectTextureId;
 
 float* g_vertices;
 
-bool lockcamerain = true    ;
+bool lockcamerain = true;
 
 GLuint loadTexture1(const char* texImagePath) {
     GLuint textureID = SOIL_load_OGL_texture(texImagePath,
@@ -117,29 +127,52 @@ float **  PerlinNoise2D(int nOctaves, float fBias, int nWidth, int nHeight, floa
     return perlinNoise;
 }
 
+float grabHeightVal(int i, int j) {
+    if(j < 0 || j >= 1024 || i < 0 || i >= 1024)
+        return 0;
+    return ((island_info[i * 1024 + j] / 155)) * 2;
+}
+
+float* generateNormals(int dim, float width, float height)
+{
+    float* normals = (float*)malloc(sizeof(float) * dim * dim * 3);
+
+    int i = 0; int j = 0;
+
+    int index = 0;
+    for (i = 0; i < dim; i++)
+    {
+        for (j = 0; j < dim; j++)
+        {
+            float heightL = grabHeightVal(i, j+1);
+            float heightR = grabHeightVal(i, j-1);
+            float heightD = grabHeightVal(i+1, j);
+            float heightU = grabHeightVal(i-1, j);
+            normals[index++] = heightR- heightL;
+            normals[index++] = 2;
+            normals[index++] = heightU- heightD;
+        }
+    }
+    return normals;
+}
+
+
 float * generateVerticies(int dim, float width, float height)
 {
     float * vertices = (float*)malloc(sizeof(float) * dim * dim * 3);
 
     int i = 0; int j = 0;
-    float * fSeed = (float *) malloc(sizeof(float) * dim * dim);
-
-    for (i = 0; i < dim * dim; i++)
-        fSeed[i] = -2 + ((float)rand() / (float)RAND_MAX) * 4;
-
-    float** perlinNoise = PerlinNoise2D(8, 1.5, dim, dim, fSeed);
 
     int index = 0;
     for ( i = 0; i < dim; i++)
     {
         for (j = 0; j < dim; j++)
         {
-            vertices[index++] = j * width*0.1;
-            vertices[index++] = perlinNoise[i][j] * 10;
-            vertices[index++] = i * height * 0.1;
+            vertices[index++] = j * width*0.1*2;
+            vertices[index++] = grabHeightVal(i, j);
+            vertices[index++] = i * height * 0.1*2;
         }
     }
-    free(fSeed);
     return vertices;
 }
 
@@ -209,12 +242,12 @@ unsigned int loadCubemap()
     // cubemap
     GLuint m_texture = SOIL_load_OGL_cubemap
     (
-        "right.jpg",
-        "left.jpg",
-        "top.jpg",
-        "bottom.jpg",
-        "front.jpg",
-        "back.jpg",
+        "res\\right.jpg",
+        "res\\left.jpg",
+        "res\\top.jpg",
+        "res\\bottom.jpg",
+        "res\\front.jpg",
+        "res\\back.jpg",
         SOIL_LOAD_RGB,
         SOIL_CREATE_NEW_ID,
         SOIL_FLAG_MIPMAPS
@@ -223,14 +256,12 @@ unsigned int loadCubemap()
 }
 
 
-GLfloat calculateNormal(int x, int z) {
-
-}
-
 // setup VBO/VAO shit
 GLuint init () {
-    GLuint shaderProgram = createShader("terrain_shader.vert", "terrain_shader.frag");
-    cubemapShader = createShader("skybox_shader.vert", "skybox_shader.frag");
+    GLuint shaderProgram = createShader("shaders\\terrain_shader.vert", "shaders\\terrain_shader.frag");
+    cubemapShader = createShader("shaders\\skybox_shader.vert", "shaders\\skybox_shader.frag");
+    waterShader = createShader("shaders\\water_shader.vert", "shaders\\water_shader.frag");
+
     cubemaptexture = loadCubemap();
 
     GLfloat vc[] = {
@@ -270,15 +301,16 @@ GLuint init () {
 
     GLfloat* vertices = generateVerticies(CHUNK_DIMENSION, 1, 1);
     GLuint* indices = generateFaces(CHUNK_DIMENSION);
+    GLfloat* normals = generateNormals(CHUNK_DIMENSION,1 ,1);
     GLfloat* textureCoordinates = generateTC();
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
 
-    GLuint vbo[3];
+    GLuint vbo[7];
 
-    glGenVertexArrays(2, vao);
-    glGenBuffers(3, vbo);
+    glGenVertexArrays(3, vao);
+    glGenBuffers(7, vbo);
 
     // cubemap vertex setup
 
@@ -290,9 +322,9 @@ GLuint init () {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO[1]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(in), in, GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vc), vc, GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
     GLuint VP = glGetAttribLocation(cubemapShader, "aPos");
     glVertexAttribPointer(VP, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
     glEnableVertexAttribArray(VP);
@@ -306,38 +338,126 @@ GLuint init () {
     free(indices);
 
     // load vertices
-    glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * CHUNK_DIMENSION * CHUNK_DIMENSION * 3, vertices, GL_STATIC_DRAW);
     free(vertices);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
     GLuint vertexPosition = glGetAttribLocation(shaderProgram, "aPos");
     glVertexAttribPointer(vertexPosition, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
     glEnableVertexAttribArray(vertexPosition);
 
+    // load normals
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * CHUNK_DIMENSION * CHUNK_DIMENSION * 3, normals, GL_STATIC_DRAW);
+    free(normals);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+    GLuint normalsPosition = glGetAttribLocation(shaderProgram, "aNorm");
+    glVertexAttribPointer(normalsPosition, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+    glEnableVertexAttribArray(normalsPosition);
+
     glActiveTexture(GL_TEXTURE0);
-    loadTerrainTexture("image.jpg");
+    loadTerrainTexture("res\\dirt.png");
     // load texture coordiantes
-    glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * CHUNK_DIMENSION * CHUNK_DIMENSION * 2, textureCoordinates, GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
     GLuint textureCoordinatePosition = glGetAttribLocation(shaderProgram, "tc");
     glVertexAttribPointer(textureCoordinatePosition, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
     glEnableVertexAttribArray(textureCoordinatePosition);
     free(textureCoordinates);
 
+    glBindVertexArray(vao[2]);
+    float PLANE_POSITIONS[18] = {
+        -128.0f, 0.0f, -128.0f, -128.0f, 0.0f, 128.0f, 128.0f, 0.0f, -128.0f,
+        128.0f, 0.0f, -128.0f, -128.0f, 0.0f, 128.0f, 128.0f, 0.0f, 128.0f
+    };
 
+    float PLANE_NORMALS[18] = {
+        0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,0.0f, 1.0f, 0.0f,
+        0.0f, 1.0f, 0.0f,0.0f, 1.0f, 0.0f,0.0f, 1.0f, 0.0f
+    };
+    float PLANE_TEXCOORDS[12] = {
+    0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f
+    };
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[4]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(PLANE_POSITIONS), PLANE_POSITIONS, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[4]);
+    GLuint vpos = glGetAttribLocation(shaderProgram, "aPos");
+    glVertexAttribPointer(vpos, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+    glEnableVertexAttribArray(vpos);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[5]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(PLANE_TEXCOORDS), PLANE_POSITIONS, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[5]);
+    GLuint tcpos = glGetAttribLocation(shaderProgram, "ftc");
+    glVertexAttribPointer(tcpos, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+    glEnableVertexAttribArray(tcpos);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[6]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(PLANE_NORMALS), PLANE_NORMALS, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[6]);
+    GLuint normPos = glGetAttribLocation(shaderProgram, "aNorm");
+    glVertexAttribPointer(normPos, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+    glEnableVertexAttribArray(normPos);
 
     glmc_perspective(glm_rad(height*0.1f), (float)width / (float) height, 0.1f, 100.0f, &perspective);
-    vec3 m1_translate = { -20.0, 10.0, -20.0 };
+    vec3 m1_translate = { -50, -5, 0.0 };
     glmc_translate(model1, m1_translate);
 
-    vec3 m2_scale = { 50, 50, 50 };
+    vec3 m2_scale = {50, 50, 50 };
+    //vec3 m2_translate = { 0, 0, 5};
     glmc_scale(model2, m2_scale);
+
+
+    vec3 m3_trans = { 0, -3.5, 0 };
+    glmc_translate(model3, m3_trans);
+    glmc_scale(model3, m2_scale);
 
     return shaderProgram;
 }
 
+void createFrameBuffers(GLFWwindow * window) {
+    GLuint bufferId[1];
+    glGenBuffers(1, bufferId);
+    glfwGetFramebufferSize(window, &width, &height);
+
+    glGenFramebuffers(1, bufferId);
+    refractFrameBuffer = bufferId[0];
+    glBindFramebuffer(GL_FRAMEBUFFER, refractFrameBuffer);
+    glGenTextures(1, bufferId); // this is for the color buffer
+    refractTextureId = bufferId[0];
+    glBindTexture(GL_TEXTURE_2D, refractTextureId);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, refractTextureId, 0);
+    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    glGenTextures(1, bufferId); // this is for the depth buffer
+    glBindTexture(GL_TEXTURE_2D, bufferId[0]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, bufferId[0], 0);
+    // initialize reflection framebuffer
+    glGenFramebuffers(1, bufferId);
+    reflectFrameBuffer = bufferId[0];
+    glBindFramebuffer(GL_FRAMEBUFFER, refractFrameBuffer);
+    glGenTextures(1, bufferId); // this is for the color buffer
+    reflectTextureId = bufferId[0];
+    glBindTexture(GL_TEXTURE_2D, reflectTextureId);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, reflectTextureId, 0);
+    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    glGenTextures(1, bufferId); // this is for the depth buffer
+    glBindTexture(GL_TEXTURE_2D, bufferId[0]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, bufferId[0], 0);
+}
 
 void reshape(GLFWwindow* window, int w, int h)
 {
@@ -345,10 +465,9 @@ void reshape(GLFWwindow* window, int w, int h)
 }       
 
 
-
-
 // draw
 void display(GLuint shaderProgram, float deltaTime) {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glmc_perspective(glm_rad(height * 0.1f), (float)width / (float)height, 0.1f, 100.0f, &perspective);
 
     move_events(deltaTime);
@@ -358,31 +477,113 @@ void display(GLuint shaderProgram, float deltaTime) {
     glViewport(0, 0, width, height);
     glClearColor(1.0, 1.0, 1.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
-    glCullFace(GL_BACK);
-    glUseProgram(shaderProgram);
-    glBindVertexArray(vao[0]);
-    glm_mat4_mulN((mat4 * []) { &perspective, & view, & model1 }, 3, mvp);
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "mvp"), 1, GL_FALSE, mvp[0]);
-    glDrawElements(GL_TRIANGLES, CHUNK_DIMENSION* CHUNK_DIMENSION * 2 * 3, GL_UNSIGNED_INT, 0);
 
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDepthMask(GL_FALSE);
-    glCullFace(GL_FRONT); 
+    glCullFace(GL_FRONT);
     glUseProgram(cubemapShader);
     glBindTexture(GL_TEXTURE_CUBE_MAP, cubemaptexture);
     glBindVertexArray(vao[1]);
-    //vec3 moveToCamera = { cameraPos[0]+20,cameraPos[1]+10, cameraPos[2] };
-    
-    //glm_translate(model2, moveToCamera);
     view[3][0] = 0;
     view[3][1] = 0;
     view[3][2] = 0;
-    glm_mat4_mulN((mat4* []) { &perspective, & view, & model2 }, 3, mvp);
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "mvp"), 1, GL_FALSE, mvp[0]);
+    glm_mat4_mulN((mat4 * []) { &perspective, & view, & model2 }, 3, mvp);
+    glUniformMatrix4fv(glGetUniformLocation(cubemapShader, "mvp"), 1, GL_FALSE, mvp[0]);
     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+
+    // FACE THE CAMERA UP
+    // take a screenshot of the sky and paste it as a texture onto the water object
+    // this will be the reflect portion of the water
+
+    glBindFramebuffer(GL_FRAMEBUFFER, reflectFrameBuffer);
+
+    mat4 view_below = GLM_MAT4_IDENTITY_INIT;
+    vec3 translate_under_the_water_facing_up = {0.0f, -(-3.5-cameraPos[1]), 0.0f};
+    glmc_translate(view_below, translate_under_the_water_facing_up);
+    glmc_rotate(view_below, -PITCH, GLM_XUP);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDepthMask(GL_FALSE);
+
+    glUseProgram(cubemapShader);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubemaptexture);
+    glBindVertexArray(vao[1]);
+    glm_mat4_mulN((mat4 * []) { &perspective, & view_below, & model2 }, 3, mvp);
+    glUniformMatrix4fv(glGetUniformLocation(cubemapShader, "mvp"), 1, GL_FALSE, mvp[0]);
+    glActiveTexture(GL_TEXTURE1);
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+    // DREW SKY TO FRAMEBUFFER
+    glCullFace(GL_BACK);
+
+    // refract
+    glBindFramebuffer(GL_FRAMEBUFFER, reflectFrameBuffer);
+    mat4 view_above = GLM_MAT4_IDENTITY_INIT;
+    vec3 translate_above_the_water_facing_down = { 0.0f, -(cameraPos[1]), 0.0f };
+    glmc_translate(view_above, translate_above_the_water_facing_down);
+    glmc_rotate(view_above, -PITCH, GLM_XUP);
+    glBindBuffer(GL_FRAMEBUFFER, refractFrameBuffer);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT);
+    // now render the checkerboard floor (and other items below the surface) to the refraction buffer
+    glUseProgram(shaderProgram);
+    glBindVertexArray(vao[0]);
+
+    glm_mat4_mulN((mat4* []) { &perspective, & view, & model1 }, 3, mvp);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "mvp"), 1, GL_FALSE, mvp[0]);
+    glUniform3fv(glGetUniformLocation(shaderProgram, "eyePos"), 1, cameraPos);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, model1[0]);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, view[0]);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glActiveTexture(GL_TEXTURE2);
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+
     glDepthMask(GL_TRUE);
+    glEnable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glEnable(GL_DEPTH_TEST);
 
 
+
+    
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    move_events(deltaTime);
+    updateCameraVectors();
+    getViewMatrix(&view);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, reflectTextureId);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, refractTextureId);
+
+    glUseProgram(waterShader);
+    glBindVertexArray(vao[2]);
+    glm_mat4_mulN((mat4 * []) { &perspective, & view, & model3 }, 3, mvp);
+    glUniformMatrix4fv(glGetUniformLocation(waterShader, "mvp"), 1, GL_FALSE, mvp[0]);
+    glUniformMatrix4fv(glGetUniformLocation(waterShader, "model"), 1, GL_FALSE, model3[0]);
+    glUniformMatrix4fv(glGetUniformLocation(waterShader, "view"), 1, GL_FALSE, view[0]);
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glEnable(GL_CULL_FACE);
+
+    glCullFace(GL_BACK);
+    glUseProgram(shaderProgram);
+    glBindVertexArray(vao[0]);
+
+    glFrontFace(GL_CW);
+
+    glm_mat4_mulN((mat4 * []) { &perspective, & view, & model1 }, 3, mvp);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "mvp"), 1, GL_FALSE, mvp[0]);
+    glUniform3fv(glGetUniformLocation(shaderProgram, "eyePos"), 1, cameraPos);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, model1[0]);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, view[0]);
+    glDrawElements(GL_TRIANGLES, CHUNK_DIMENSION* CHUNK_DIMENSION * 2 * 3, GL_UNSIGNED_INT, 0);
 
 }
 
@@ -469,6 +670,7 @@ void window_execution() {
     float t, t_old = 0;
     float dt = glfwGetTime();
     /* Main loop */
+    createFrameBuffers(window);
 
     while (true)
     {

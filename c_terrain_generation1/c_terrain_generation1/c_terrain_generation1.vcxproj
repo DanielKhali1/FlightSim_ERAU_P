@@ -263,6 +263,7 @@
     <ClCompile Include="shader_helper.c" />
     <ClCompile Include="Source.c" />
     <ClInclude Include="camera.h" />
+    <ClInclude Include="game_state.h" />
     <ClInclude Include="shader_helper.h" />
     <ResourceCompile Include="C:\Users\danny\OneDrive\Documents\glfw-3.3.8\examples\glfw.rc" />
     <ClInclude Include="C:\Users\danny\OneDrive\Documents\glfw-3.3.8\deps\glad\gl.h" />
@@ -281,15 +282,26 @@
   </ItemGroup>
   <ItemGroup>
     <Library Include="cglm.lib" />
-    <Library Include="glfw3.lib" />
   </ItemGroup>
   <ItemGroup>
     <None Include="cglm.dll" />
-    <None Include="skybox_shader.frag" />
-    <None Include="skybox_shader.vert" />
-    <None Include="terrain_shader.frag" />
-    <None Include="terrain_shader.vert" />
+    <None Include="glew32.dll" />
     <None Include="glfw3.pdb" />
+    <None Include="shaders\skybox_shader.frag" />
+    <None Include="shaders\skybox_shader.vert" />
+    <None Include="shaders\terrain_shader.frag" />
+    <None Include="shaders\terrain_shader.vert" />
+    <None Include="shaders\water_shader.frag" />
+    <None Include="shaders\water_shader.vert" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\back.jpg" />
+    <Image Include="res\bottom.jpg" />
+    <Image Include="res\front.jpg" />
+    <Image Include="res\image.jpg" />
+    <Image Include="res\left.jpg" />
+    <Image Include="res\right.jpg" />
+    <Image Include="res\top.jpg" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

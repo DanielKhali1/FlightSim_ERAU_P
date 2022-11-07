@@ -24,6 +24,9 @@
     <ClInclude Include="camera.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="game_state.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="C:\Users\danny\OneDrive\Documents\glfw-3.3.8\examples\glfw.rc">
@@ -37,17 +40,60 @@
     <Filter Include="Source Files">
       <UniqueIdentifier>{11993645-092B-316A-B47C-1A21E21F5CDA}</UniqueIdentifier>
     </Filter>
+    <Filter Include="res">
+      <UniqueIdentifier>{7b64c684-2ce5-4a5b-9dc7-d7eeae4a25ba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shaders">
+      <UniqueIdentifier>{40c7f88a-b019-4298-9b0f-4b45abaffa79}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Library Include="cglm.lib" />
-    <Library Include="glfw3.lib" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="glew32.dll" />
     <None Include="glfw3.pdb" />
     <None Include="cglm.dll" />
-    <None Include="terrain_shader.frag" />
-    <None Include="terrain_shader.vert" />
-    <None Include="skybox_shader.frag" />
-    <None Include="skybox_shader.vert" />
+    <None Include="shaders\terrain_shader.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="shaders\terrain_shader.vert">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="shaders\skybox_shader.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="shaders\skybox_shader.vert">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="shaders\water_shader.frag">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="shaders\water_shader.vert">
+      <Filter>shaders</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\left.jpg">
+      <Filter>res</Filter>
+    </Image>
+    <Image Include="res\right.jpg">
+      <Filter>res</Filter>
+    </Image>
+    <Image Include="res\top.jpg">
+      <Filter>res</Filter>
+    </Image>
+    <Image Include="res\back.jpg">
+      <Filter>res</Filter>
+    </Image>
+    <Image Include="res\bottom.jpg">
+      <Filter>res</Filter>
+    </Image>
+    <Image Include="res\front.jpg">
+      <Filter>res</Filter>
+    </Image>
+    <Image Include="res\image.jpg">
+      <Filter>res</Filter>
+    </Image>
   </ItemGroup>
 </Project>
