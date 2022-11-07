@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.3.32819.101
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "c_terrain_generation1", "c_terrain_generation1\c_terrain_generation1.vcxproj", "{EF840977-E98C-44B5-8235-DDD13FD300DB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		MinSizeRel|x64 = MinSizeRel|x64
+		Release|x64 = Release|x64
+		RelWithDebInfo|x64 = RelWithDebInfo|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{EF840977-E98C-44B5-8235-DDD13FD300DB}.Debug|x64.ActiveCfg = Debug|x64
+		{EF840977-E98C-44B5-8235-DDD13FD300DB}.Debug|x64.Build.0 = Debug|x64
+		{EF840977-E98C-44B5-8235-DDD13FD300DB}.MinSizeRel|x64.ActiveCfg = MinSizeRel|x64
+		{EF840977-E98C-44B5-8235-DDD13FD300DB}.MinSizeRel|x64.Build.0 = MinSizeRel|x64
+		{EF840977-E98C-44B5-8235-DDD13FD300DB}.Release|x64.ActiveCfg = Release|x64
+		{EF840977-E98C-44B5-8235-DDD13FD300DB}.Release|x64.Build.0 = Release|x64
+		{EF840977-E98C-44B5-8235-DDD13FD300DB}.RelWithDebInfo|x64.ActiveCfg = RelWithDebInfo|x64
+		{EF840977-E98C-44B5-8235-DDD13FD300DB}.RelWithDebInfo|x64.Build.0 = RelWithDebInfo|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {589C7C13-3843-4561-8DE1-880C72E226C5}
+	EndGlobalSection
+EndGlobal
