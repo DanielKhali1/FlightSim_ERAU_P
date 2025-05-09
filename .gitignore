@@ -1,0 +1,6 @@
+*.vsidx
+*.db
+*.lock
+c_terrain_generation1/.vs/c_terrain_generation1/v17/.suo
+/c_terrain_generation1/.vs/c_terrain_generation1/v17
+*.tlog
