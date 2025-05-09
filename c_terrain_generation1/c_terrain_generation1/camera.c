@@ -8,7 +8,7 @@
 void init_camera(GLFWwindow* window) {
 
 
-	YAW = -90.0f;
+	YAW = 90.0f;
 	PITCH = 0.0f;
 	SPEED = 2.5f;
 	SENSITIVITY = 0.1f;

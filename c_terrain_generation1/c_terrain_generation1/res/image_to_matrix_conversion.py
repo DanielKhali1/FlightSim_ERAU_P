@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-img = cv2.imread("island3.png", 0) # read image as grayscale. Set second parameter to 1 if rgb is required 
+img = cv2.imread("Austrailia.jpg", 0) # read image as grayscale. Set second parameter to 1 if rgb is required 
 
 string = "{"
 with open("dat.txt", 'w') as f:

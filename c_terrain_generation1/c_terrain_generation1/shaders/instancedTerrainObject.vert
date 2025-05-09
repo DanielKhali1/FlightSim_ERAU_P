@@ -12,15 +12,10 @@ out vec2 ftc;
 out vec3 fragPos;
 out vec3 norm;
 
-out vec4 glp;
-
-
-
 void main()
 {
 	norm = mat3(transpose(inverse(model))) * aNorm;
 	fragPos = vec3(model * vec4(aPos, 1.0));
-	glp = mvp * vec4(aPos, 1.0);
-   gl_Position = mvp * vec4(aPos, 1.0) ;
-   ftc = tc;
+	gl_Position = mvp * vec4(aPos, 1.0) ;
+	ftc = tc;
 } 
